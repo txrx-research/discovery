@@ -49,6 +49,12 @@ dependencies {
   errorprone("com.google.errorprone:error_prone_core")
 }
 
+task run (type: JavaExec){
+  description = "Attack"
+  main = 'org.ethereum.beacon.discovery.HalfAuthAttack'
+  classpath = sourceSets.main.runtimeClasspath
+}
+
 spotless {
   java {
     target fileTree('.') {
