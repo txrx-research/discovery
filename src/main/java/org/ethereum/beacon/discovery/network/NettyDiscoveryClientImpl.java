@@ -42,7 +42,6 @@ public class NettyDiscoveryClientImpl implements DiscoveryClient {
   public void send(Bytes data, InetSocketAddress destination) {
     DatagramPacket packet = new DatagramPacket(Unpooled.copiedBuffer(data.toArray()), destination);
     logger.trace(() -> String.format("Sending packet %s", packet));
-    channel.write(packet);
-    channel.flush();
+    channel.writeAndFlush(packet);
   }
 }

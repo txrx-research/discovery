@@ -23,6 +23,11 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.web3j.crypto.ECKeyPair;
+import org.web3j.rlp.RlpDecoder;
+import org.web3j.rlp.RlpEncoder;
+import org.web3j.rlp.RlpList;
+import org.web3j.rlp.RlpString;
+import org.web3j.rlp.RlpType;
 
 import java.net.BindException;
 import java.net.InetAddress;
@@ -37,12 +42,14 @@ import java.util.concurrent.ThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 import java.util.concurrent.TimeoutException;
 import java.util.concurrent.atomic.AtomicBoolean;
+import java.util.concurrent.locks.LockSupport;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
 import static java.util.stream.Collectors.toSet;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.ethereum.beacon.discovery.util.Functions.PRIVKEY_SIZE;
+import static org.ethereum.beacon.discovery.util.Functions.generateECKeyPair;
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertThrows;
@@ -75,17 +82,18 @@ public class DiscoveryIntegrationTest {
 
     @Test
     public void client() throws Exception {
-       CompletableFuture<Void> passed = new CompletableFuture<>();
-      final NodeRecord server = new NodeRecordFactory(new IdentitySchemaV4Interpreter()).fromBase64("-Iu4QPcpvSc8xXHH1jqugmY4HstWUjd_BBfXypUVaZuOSXNtZu_ShbEPNvrDKTbbldWohIeIWqPS9KbdzLayZlwDNWUBgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQMhOSidFupDnMVI0E5UxE1b-fEP0lZLcuW8uYZow0TGwYN0Y3CCIyiDdWRwgiMo");
-        final DiscoverySystem client = createDiscoveryClient(server);
+        CompletableFuture<Void> passed = new CompletableFuture<>();
+        final NodeRecord server = new NodeRecordFactory(new IdentitySchemaV4Interpreter()).fromBase64("-Iu4QM80z6Ep5vcg9_Y16dPFb28oeSIQ3GEtDEZ6VYkWmHntVWO6D93NR4PUwyH86lY_WQ29lmrl-W1o_XhFJ2BfmNoBgmlkgnY0gmlwhH8AAAGJc2VjcDI1NmsxoQO4RGX3ywn95jBXQtD7ROTrYWL-CCpLA9DBV-J4_gqzOYN0Y3CCIyiDdWRwgiMo");
+        final DiscoverySystem client = createDiscoveryClient(true, LOCALHOST, generateECKeyPair(), server);
         Long start = System.nanoTime();
 //        CompletableFuture<Void> neverCompleted = new CompletableFuture<>();
         client.startHandshake(server).thenApply(packet -> {
             System.out.println("Got packet, sending malformed AuthHeaderMessage packets");
-            AuthHeaderMessagePacket modified = new AuthHeaderMessagePacket(packet.getBytes().slice(0, packet.getBytes().size() - 1));
-            for (int i = 0; i < 100; ++i) {
+            AuthHeaderMessagePacket modified = corruptAuthHeader(packet);
+            for (int i = 0; i < 10000; ++i) {
 //                executor.submit(() -> {
                     client.completeHandshake(modified, server);
+                    LockSupport.parkNanos(500000);
 //                });
                 if (i % 1000 == 0) {
                     System.out.println(i + " requests sent");
@@ -94,7 +102,7 @@ public class DiscoveryIntegrationTest {
             System.out.println("Total time: " + (System.nanoTime() - start) / 1_000_000L + "ms");
             return packet;
         }).thenApply((Function<AuthHeaderMessagePacket, Void>) original -> {
-            client.completeHandshake(original, server).thenApply((Function<Void, Object>) unused -> {
+            client.completeHandshake(original, server).thenApply(unused -> {
                 passed.complete(null);
                 return null;
             });
@@ -102,6 +110,32 @@ public class DiscoveryIntegrationTest {
         });
 
         waitFor(passed, 600);
+    }
+
+    private static AuthHeaderMessagePacket corruptAuthHeader(AuthHeaderMessagePacket packet) {
+        Bytes correctAuthHeader = packet.getAuthHeader();
+        RlpList list = RlpDecoder.decode(correctAuthHeader.toArray());
+        RlpList insideList = (RlpList) list.getValues().get(0);
+        RlpString correctIdNonce  = (RlpString) insideList.getValues().get(1);
+        byte[] idNonceBytes2 = correctIdNonce.getBytes();
+        if (idNonceBytes2[idNonceBytes2.length - 1]  == (byte) 134) {
+            idNonceBytes2[idNonceBytes2.length - 1] = (byte) 133;
+        } else {
+            idNonceBytes2[idNonceBytes2.length - 1] = (byte) 134;
+        }
+        RlpString incorrectIdNonce = RlpString.create(idNonceBytes2);
+        List<RlpType> badHeader = new ArrayList<>();
+        badHeader.add(insideList.getValues().get(0));
+        badHeader.add(incorrectIdNonce);
+        badHeader.add(insideList.getValues().get(2));
+        badHeader.add(insideList.getValues().get(3));
+        badHeader.add(insideList.getValues().get(4));
+
+        return AuthHeaderMessagePacket.create(
+                packet.getTag(),
+                Bytes.wrap(RlpEncoder.encode(new RlpList(badHeader))),
+                packet.getEncryptedMessage()
+        );
     }
 
     @Test
