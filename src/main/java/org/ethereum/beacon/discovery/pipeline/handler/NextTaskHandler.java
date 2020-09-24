@@ -10,6 +10,7 @@ import java.util.Optional;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
+import org.ethereum.beacon.discovery.packet.AuthHeaderMessagePacket;
 import org.ethereum.beacon.discovery.packet.MessagePacket;
 import org.ethereum.beacon.discovery.packet.RandomPacket;
 import org.ethereum.beacon.discovery.pipeline.Envelope;
@@ -17,10 +18,12 @@ import org.ethereum.beacon.discovery.pipeline.EnvelopeHandler;
 import org.ethereum.beacon.discovery.pipeline.Field;
 import org.ethereum.beacon.discovery.pipeline.HandlerUtil;
 import org.ethereum.beacon.discovery.pipeline.Pipeline;
+import org.ethereum.beacon.discovery.pipeline.info.HalfAuthRequestInfo;
 import org.ethereum.beacon.discovery.pipeline.info.RequestInfo;
 import org.ethereum.beacon.discovery.scheduler.Scheduler;
 import org.ethereum.beacon.discovery.schema.NodeSession;
 import org.ethereum.beacon.discovery.task.TaskMessageFactory;
+import org.ethereum.beacon.discovery.task.TaskOptions;
 import org.ethereum.beacon.discovery.task.TaskStatus;
 
 /** Gets next request task in session and processes it */
@@ -81,6 +84,23 @@ public class NextTaskHandler implements EnvelopeHandler {
       session.setAuthTag(authTag);
       session.sendOutgoing(randomPacket);
       session.setStatus(NodeSession.SessionStatus.RANDOM_PACKET_SENT);
+      if (requestInfo instanceof HalfAuthRequestInfo) {
+        System.out.println("Half auth update");
+        TaskOptions taskOptions = (TaskOptions) envelope.get(Field.TASK_OPTIONS);
+        session.updateRequestInfo(requestId, new HalfAuthRequestInfo(
+                requestInfo.getTaskType(),
+                TaskStatus.AWAIT,
+                requestInfo.getRequestId(),
+                authTag,
+                requestInfo.getFuture(),
+                taskOptions.getAuthCallback()
+        ));
+      }
+    } else if (session.getStatus().equals(NodeSession.SessionStatus.RANDOM_PACKET_SENT)) {
+//      System.out.println("Sending authMessage");
+      TaskOptions taskOptions = (TaskOptions) envelope.get(Field.TASK_OPTIONS);
+      AuthHeaderMessagePacket packet = taskOptions.getAuthHeaderMessagePacket();
+      session.sendOutgoing(packet);
     } else if (session.getStatus().equals(NodeSession.SessionStatus.AUTHENTICATED)) {
       MessagePacket messagePacket =
           TaskMessageFactory.createPacketFromRequest(requestInfo, authTag, session);

@@ -5,6 +5,7 @@
 package org.ethereum.beacon.discovery.pipeline.info;
 
 import static org.ethereum.beacon.discovery.task.TaskStatus.AWAIT;
+import static org.ethereum.beacon.discovery.task.TaskStatus.SENT;
 
 import java.util.concurrent.CompletableFuture;
 import org.apache.tuweni.bytes.Bytes;
@@ -19,8 +20,11 @@ public class RequestInfoFactory {
         {
           return new FindNodeRequestInfo(AWAIT, id, future, taskOptions.getDistance(), null);
         }
+      case HALFAUTH: {
+        return new HalfAuthRequestInfo(taskType, AWAIT, id, future);
+      }
       case PING:
-        {
+      case AUTH: {
           return new GeneralRequestInfo(taskType, AWAIT, id, future);
         }
       default:

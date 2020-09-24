@@ -17,6 +17,7 @@ import static org.junit.jupiter.api.Assertions.assertNull;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 import java.util.ArrayList;
+import java.util.List;
 import java.util.Optional;
 import java.util.Random;
 import java.util.concurrent.CompletableFuture;
@@ -29,6 +30,7 @@ import org.apache.tuweni.units.bigints.UInt64;
 import org.ethereum.beacon.discovery.TestUtil.NodeInfo;
 import org.ethereum.beacon.discovery.database.Database;
 import org.ethereum.beacon.discovery.network.NetworkParcel;
+import org.ethereum.beacon.discovery.packet.AuthHeaderMessagePacket;
 import org.ethereum.beacon.discovery.packet.MessagePacket;
 import org.ethereum.beacon.discovery.packet.Packet;
 import org.ethereum.beacon.discovery.packet.WhoAreYouPacket;
@@ -57,6 +59,11 @@ import org.ethereum.beacon.discovery.task.TaskOptions;
 import org.ethereum.beacon.discovery.task.TaskType;
 import org.ethereum.beacon.discovery.util.Functions;
 import org.junit.jupiter.api.Test;
+import org.web3j.rlp.RlpDecoder;
+import org.web3j.rlp.RlpEncoder;
+import org.web3j.rlp.RlpList;
+import org.web3j.rlp.RlpString;
+import org.web3j.rlp.RlpType;
 
 @SuppressWarnings({"DoubleBraceInitialization"})
 public class HandshakeHandlersTest {
@@ -176,10 +183,43 @@ public class HandshakeHandlersTest {
         new AuthHeaderMessagePacketHandler(
             outgoingPipeline, taskScheduler, NODE_RECORD_FACTORY_NO_VERIFICATION);
     Envelope envelopeAt2From1 = new Envelope();
-    envelopeAt2From1.put(PACKET_AUTH_HEADER_MESSAGE, outgoing1Packets[0]);
-    envelopeAt2From1.put(SESSION, nodeSessionAt2For1);
-    assertFalse(nodeSessionAt2For1.isAuthenticated());
-    authHeaderMessagePacketHandlerNode2.handle(envelopeAt2From1);
+    AuthHeaderMessagePacket original = (AuthHeaderMessagePacket) outgoing1Packets[0];
+//    assertFalse(nodeSessionAt2For1.isAuthenticated());
+    Long start = System.nanoTime();
+//    AuthHeaderMessagePacket modified = new AuthHeaderMessagePacket(original.getBytes().slice(0, original.getBytes().size() - 1));
+    Bytes correctAuthHeader = original.getAuthHeader();
+    RlpList list = RlpDecoder.decode(correctAuthHeader.toArray());
+    RlpList insideList = (RlpList) list.getValues().get(0);
+    RlpString correctIdNonce  = (RlpString) insideList.getValues().get(1);
+    byte[] idNonceBytes2 = correctIdNonce.getBytes();
+    if (idNonceBytes2[idNonceBytes2.length - 1]  == (byte) 134) {
+      idNonceBytes2[idNonceBytes2.length - 1] = (byte) 133;
+    } else {
+      idNonceBytes2[idNonceBytes2.length - 1] = (byte) 134;
+    }
+    RlpString incorrectIdNonce = RlpString.create(idNonceBytes2);
+    List<RlpType> badHeader = new ArrayList<>();
+    badHeader.add(insideList.getValues().get(0));
+    badHeader.add(incorrectIdNonce);
+    badHeader.add(insideList.getValues().get(2));
+    badHeader.add(insideList.getValues().get(3));
+    badHeader.add(insideList.getValues().get(4));
+    AuthHeaderMessagePacket modified = AuthHeaderMessagePacket.create(
+            original.getTag(),
+            Bytes.wrap(RlpEncoder.encode(new RlpList(badHeader))),
+            original.getEncryptedMessage()
+    );
+    for (int i = 0; i < 1000; ++i) {
+      envelopeAt2From1.put(PACKET_AUTH_HEADER_MESSAGE, modified);
+      envelopeAt2From1.put(SESSION, nodeSessionAt2For1);
+      authHeaderMessagePacketHandlerNode2.handle(envelopeAt2From1);
+      assertFalse(nodeSessionAt2For1.isAuthenticated());
+    }
+    System.out.println("Total time: " + (System.nanoTime() - start)/1_000_000L + "ms");
+    Envelope envelopeAt2From1Correct = new Envelope();
+    envelopeAt2From1Correct.put(PACKET_AUTH_HEADER_MESSAGE, original);
+    envelopeAt2From1Correct.put(SESSION, nodeSessionAt2For1);
+    authHeaderMessagePacketHandlerNode2.handle(envelopeAt2From1Correct);
     assertTrue(nodeSessionAt2For1.isAuthenticated());
 
     // Node 1 handles message from Node 2

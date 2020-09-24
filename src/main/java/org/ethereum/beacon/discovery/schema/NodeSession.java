@@ -7,6 +7,7 @@ package org.ethereum.beacon.discovery.schema;
 import static com.google.common.base.Preconditions.checkArgument;
 import static com.google.common.base.Preconditions.checkNotNull;
 import static org.ethereum.beacon.discovery.task.TaskStatus.AWAIT;
+import static org.ethereum.beacon.discovery.task.TaskStatus.SENT;
 
 import java.net.InetSocketAddress;
 import java.util.HashSet;
@@ -295,8 +296,13 @@ public class NodeSession {
    */
   public synchronized Optional<RequestInfo> getFirstAwaitRequestInfo() {
     return requestIdStatuses.values().stream()
-        .filter(requestInfo -> AWAIT.equals(requestInfo.getTaskStatus()))
-        .findFirst();
+            .filter(requestInfo -> AWAIT.equals(requestInfo.getTaskStatus()))
+            .findFirst();
+  }
+  public synchronized Optional<RequestInfo> getFirstSentRequestInfo() {
+    return requestIdStatuses.values().stream()
+            .filter(requestInfo -> SENT.equals(requestInfo.getTaskStatus()))
+            .findFirst();
   }
 
   public NodeTable getNodeTable() {

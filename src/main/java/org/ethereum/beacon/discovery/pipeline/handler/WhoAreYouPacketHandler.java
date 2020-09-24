@@ -7,6 +7,7 @@ package org.ethereum.beacon.discovery.pipeline.handler;
 import static org.ethereum.beacon.discovery.util.Functions.PUBKEY_SIZE;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Supplier;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
@@ -20,12 +21,16 @@ import org.ethereum.beacon.discovery.pipeline.EnvelopeHandler;
 import org.ethereum.beacon.discovery.pipeline.Field;
 import org.ethereum.beacon.discovery.pipeline.HandlerUtil;
 import org.ethereum.beacon.discovery.pipeline.Pipeline;
+import org.ethereum.beacon.discovery.pipeline.info.HalfAuthRequestInfo;
 import org.ethereum.beacon.discovery.pipeline.info.RequestInfo;
 import org.ethereum.beacon.discovery.scheduler.Scheduler;
 import org.ethereum.beacon.discovery.schema.EnrField;
 import org.ethereum.beacon.discovery.schema.NodeRecord;
 import org.ethereum.beacon.discovery.schema.NodeSession;
 import org.ethereum.beacon.discovery.task.TaskMessageFactory;
+import org.ethereum.beacon.discovery.task.TaskOptions;
+import org.ethereum.beacon.discovery.task.TaskStatus;
+import org.ethereum.beacon.discovery.task.TaskType;
 import org.ethereum.beacon.discovery.util.Functions;
 import org.ethereum.beacon.discovery.util.Utils;
 import org.web3j.crypto.ECKeyPair;
@@ -66,10 +71,10 @@ public class WhoAreYouPacketHandler implements EnvelopeHandler {
     try {
       if (!packet.isValid(session.getHomeNodeId(), session.getAuthTag().orElseThrow())) {
         logger.error(
-            "Verification not passed for message [{}] from node {} in status {}",
-            packet,
-            nodeRecord,
-            session.getStatus());
+                "Verification not passed for message [{}] from node {} in status {}",
+                packet,
+                nodeRecord,
+                session.getStatus());
         envelope.remove(Field.PACKET_WHOAREYOU);
         session.cancelAllRequests("Bad WHOAREYOU received from node");
         return;
@@ -84,43 +89,67 @@ public class WhoAreYouPacketHandler implements EnvelopeHandler {
       ECKeyPair ephemeralKey = ECKeyPair.create(ephemeralKeyBytes);
 
       Functions.HKDFKeys hkdfKeys =
-          Functions.hkdf_expand(
-              session.getHomeNodeId(),
-              nodeRecord.getNodeId(),
-              Bytes.wrap(ephemeralKeyBytes),
-              remotePubKey,
-              packet.getIdNonce());
+              Functions.hkdf_expand(
+                      session.getHomeNodeId(),
+                      nodeRecord.getNodeId(),
+                      Bytes.wrap(ephemeralKeyBytes),
+                      remotePubKey,
+                      packet.getIdNonce());
       session.setInitiatorKey(hkdfKeys.getInitiatorKey());
       session.setRecipientKey(hkdfKeys.getRecipientKey());
       Bytes authResponseKey = hkdfKeys.getAuthResponseKey();
       Optional<RequestInfo> requestInfoOpt = session.getFirstAwaitRequestInfo();
       final V5Message message =
-          requestInfoOpt
-              .map(requestInfo -> TaskMessageFactory.createMessageFromRequest(requestInfo, session))
-              .orElseThrow(
-                  (Supplier<Throwable>)
-                      () ->
-                          new RuntimeException(
-                              String.format(
-                                  "Received WHOAREYOU in envelope #%s but no requests await in %s session",
-                                  envelope.getId(), session)));
+              requestInfoOpt
+                      .map(requestInfo -> TaskMessageFactory.createMessageFromRequest(requestInfo, session))
+                      .orElseThrow(
+                              (Supplier<Throwable>)
+                                      () ->
+                                              new RuntimeException(
+                                                      String.format(
+                                                              "Received WHOAREYOU in envelope #%s but no requests await in %s session",
+                                                              envelope.getId(), session)));
 
       Bytes ephemeralPubKey =
-          Bytes.wrap(
-              Utils.extractBytesFromUnsignedBigInt(ephemeralKey.getPublicKey(), PUBKEY_SIZE));
+              Bytes.wrap(
+                      Utils.extractBytesFromUnsignedBigInt(ephemeralKey.getPublicKey(), PUBKEY_SIZE));
       AuthHeaderMessagePacket response =
-          AuthHeaderMessagePacket.create(
-              session.getHomeNodeId(),
-              nodeRecord.getNodeId(),
-              authResponseKey,
-              packet.getIdNonce(),
-              session.getStaticNodeKey(),
-              respRecord,
-              ephemeralPubKey,
-              session.generateNonce(),
-              hkdfKeys.getInitiatorKey(),
-              DiscoveryV5Message.from(message));
-      session.sendOutgoing(response);
+              AuthHeaderMessagePacket.create(
+                      session.getHomeNodeId(),
+                      nodeRecord.getNodeId(),
+                      authResponseKey,
+                      packet.getIdNonce(),
+                      session.getStaticNodeKey(),
+                      respRecord,
+                      ephemeralPubKey,
+                      session.generateNonce(),
+                      hkdfKeys.getInitiatorKey(),
+                      DiscoveryV5Message.from(message));
+
+      Optional<RequestInfo> sentRequestInfoOpt = session.getFirstAwaitRequestInfo();
+      AtomicBoolean halfAuth = new AtomicBoolean(false);
+      if (sentRequestInfoOpt.isPresent() && sentRequestInfoOpt.get() instanceof HalfAuthRequestInfo) {
+        HalfAuthRequestInfo requestInfo = (HalfAuthRequestInfo) sentRequestInfoOpt.get();
+        if (packet.getAuthTag().equals(requestInfo.getAuthTag())) {
+          halfAuth.set(true);
+        }
+      }
+      if (halfAuth.get()) {
+        HalfAuthRequestInfo requestInfo = (HalfAuthRequestInfo) sentRequestInfoOpt.get();
+        requestInfo.getAuthCallback().accept(response);
+        envelope.remove(Field.PACKET_WHOAREYOU);
+        session.updateRequestInfo(requestInfo.getRequestId(), new HalfAuthRequestInfo(
+                requestInfo.getTaskType(),
+                TaskStatus.SENT,
+                requestInfo.getRequestId(),
+                requestInfo.getAuthTag(),
+                requestInfo.getFuture(),
+                requestInfo.getAuthCallback()
+        ));
+        return;
+      } else {
+        session.sendOutgoing(response);
+      }
     } catch (Throwable ex) {
       String error =
           String.format(

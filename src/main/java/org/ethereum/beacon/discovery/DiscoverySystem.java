@@ -10,6 +10,7 @@ import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.apache.tuweni.bytes.Bytes;
 import org.apache.tuweni.bytes.Bytes32;
+import org.ethereum.beacon.discovery.packet.AuthHeaderMessagePacket;
 import org.ethereum.beacon.discovery.scheduler.ExpirationSchedulerFactory;
 import org.ethereum.beacon.discovery.schema.NodeRecord;
 import org.ethereum.beacon.discovery.schema.NodeRecordInfo;
@@ -44,13 +45,16 @@ public class DiscoverySystem {
   private void pingBootnodes() {
     bootnodes.forEach(
         bootnode ->
-            discoveryManager
-                .ping(bootnode)
-                .exceptionally(
-                    e -> {
-                      LOG.debug("Failed to ping bootnode: " + bootnode);
-                      return null;
-                    }));
+//            discoveryManager
+//                .ping(bootnode)
+//                .exceptionally(
+//                    e -> {
+//                LOG.debug("Failed to ping bootnode: " + bootnode)
+            LOG.debug("Not pinging bootnode: " + bootnode)
+    );
+            //;
+//                      return null;
+//                    }));
   }
 
   public void stop() {
@@ -88,6 +92,14 @@ public class DiscoverySystem {
    */
   public CompletableFuture<Void> ping(NodeRecord nodeRecord) {
     return discoveryManager.ping(nodeRecord);
+  }
+
+  public CompletableFuture<AuthHeaderMessagePacket> startHandshake(NodeRecord nodeRecord) {
+    return ((DiscoveryManagerImpl) discoveryManager).startHandshake(nodeRecord);
+  }
+
+  public CompletableFuture<Void> completeHandshake(AuthHeaderMessagePacket packet, NodeRecord nodeRecord) {
+    return ((DiscoveryManagerImpl) discoveryManager).completeHandshake(nodeRecord, packet);
   }
 
   public Stream<NodeRecordInfo> streamKnownNodes() {

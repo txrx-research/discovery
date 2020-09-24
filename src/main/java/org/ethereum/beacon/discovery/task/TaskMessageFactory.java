@@ -15,73 +15,69 @@ import org.ethereum.beacon.discovery.pipeline.info.RequestInfo;
 import org.ethereum.beacon.discovery.schema.NodeSession;
 
 public class TaskMessageFactory {
-  public static MessagePacket createPacketFromRequest(
-      RequestInfo requestInfo, Bytes authTag, NodeSession session) {
-    switch (requestInfo.getTaskType()) {
-      case PING:
-        {
-          return createPingPacket(authTag, session, requestInfo.getRequestId());
-        }
-      case FINDNODE:
-        {
-          FindNodeRequestInfo nodeRequestInfo = (FindNodeRequestInfo) requestInfo;
-          return createFindNodePacket(
-              authTag, session, requestInfo.getRequestId(), nodeRequestInfo.getDistance());
-        }
-      default:
-        {
-          throw new RuntimeException(
-              String.format("Type %s is not supported!", requestInfo.getTaskType()));
-        }
-    }
-  }
-
-  public static V5Message createMessageFromRequest(RequestInfo requestInfo, NodeSession session) {
-    switch (requestInfo.getTaskType()) {
-      case PING:
-        {
-          return createPing(session, requestInfo.getRequestId());
-        }
-      case FINDNODE:
-        {
-          FindNodeRequestInfo nodeRequestInfo = (FindNodeRequestInfo) requestInfo;
-          return createFindNode(requestInfo.getRequestId(), nodeRequestInfo.getDistance());
-        }
-      default:
-        {
-          throw new RuntimeException(
-              String.format("Type %s is not supported!", requestInfo.getTaskType()));
+    public static MessagePacket createPacketFromRequest(
+            RequestInfo requestInfo, Bytes authTag, NodeSession session) {
+        switch (requestInfo.getTaskType()) {
+            case PING:
+            case HALFAUTH: {
+                return createPingPacket(authTag, session, requestInfo.getRequestId());
+            }
+            case FINDNODE: {
+                FindNodeRequestInfo nodeRequestInfo = (FindNodeRequestInfo) requestInfo;
+                return createFindNodePacket(
+                        authTag, session, requestInfo.getRequestId(), nodeRequestInfo.getDistance());
+            }
+            default: {
+                throw new RuntimeException(
+                        String.format("Type %s is not supported!", requestInfo.getTaskType()));
+            }
         }
     }
-  }
 
-  public static MessagePacket createPingPacket(
-      Bytes authTag, NodeSession session, Bytes requestId) {
+    public static V5Message createMessageFromRequest(RequestInfo requestInfo, NodeSession session) {
+        switch (requestInfo.getTaskType()) {
+            case PING:
+            case HALFAUTH: {
+                return createPing(session, requestInfo.getRequestId());
+            }
+            case FINDNODE: {
+                FindNodeRequestInfo nodeRequestInfo = (FindNodeRequestInfo) requestInfo;
+                return createFindNode(requestInfo.getRequestId(), nodeRequestInfo.getDistance());
+            }
+            default: {
+                throw new RuntimeException(
+                        String.format("Type %s is not supported!", requestInfo.getTaskType()));
+            }
+        }
+    }
 
-    return MessagePacket.create(
-        session.getHomeNodeId(),
-        session.getNodeId(),
-        authTag,
-        session.getInitiatorKey(),
-        DiscoveryV5Message.from(createPing(session, requestId)));
-  }
+    public static MessagePacket createPingPacket(
+            Bytes authTag, NodeSession session, Bytes requestId) {
 
-  public static PingMessage createPing(NodeSession session, Bytes requestId) {
-    return new PingMessage(requestId, session.getNodeRecord().orElseThrow().getSeq());
-  }
+        return MessagePacket.create(
+                session.getHomeNodeId(),
+                session.getNodeId(),
+                authTag,
+                session.getInitiatorKey(),
+                DiscoveryV5Message.from(createPing(session, requestId)));
+    }
 
-  public static MessagePacket createFindNodePacket(
-      Bytes authTag, NodeSession session, Bytes requestId, int distance) {
-    FindNodeMessage findNodeMessage = createFindNode(requestId, distance);
-    return MessagePacket.create(
-        session.getHomeNodeId(),
-        session.getNodeId(),
-        authTag,
-        session.getInitiatorKey(),
-        DiscoveryV5Message.from(findNodeMessage));
-  }
+    public static PingMessage createPing(NodeSession session, Bytes requestId) {
+        return new PingMessage(requestId, session.getNodeRecord().orElseThrow().getSeq());
+    }
 
-  public static FindNodeMessage createFindNode(Bytes requestId, int distance) {
-    return new FindNodeMessage(requestId, distance);
-  }
+    public static MessagePacket createFindNodePacket(
+            Bytes authTag, NodeSession session, Bytes requestId, int distance) {
+        FindNodeMessage findNodeMessage = createFindNode(requestId, distance);
+        return MessagePacket.create(
+                session.getHomeNodeId(),
+                session.getNodeId(),
+                authTag,
+                session.getInitiatorKey(),
+                DiscoveryV5Message.from(findNodeMessage));
+    }
+
+    public static FindNodeMessage createFindNode(Bytes requestId, int distance) {
+        return new FindNodeMessage(requestId, distance);
+    }
 }

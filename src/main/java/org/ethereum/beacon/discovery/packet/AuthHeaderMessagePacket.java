@@ -207,6 +207,20 @@ public class AuthHeaderMessagePacket extends AbstractPacket {
     this.decodedEphemeralPubKeyPt = blank;
   }
 
+  public Bytes getTag() {
+    return getBytes().slice(0, 32);
+  }
+
+  public Bytes getAuthHeader() {
+    int listLen = RlpUtil.calcListLen(getBytes().slice(32));
+    return getBytes().slice(32, listLen);
+  }
+
+  public Bytes getEncryptedMessage() {
+    int listLen = RlpUtil.calcListLen(getBytes().slice(32));
+    return getBytes().slice(32 + listLen);
+  }
+
   /** Run {@link AuthHeaderMessagePacket#decodeEphemeralPubKey()} before second part */
   public void decodeMessage(
       Bytes readKey, Bytes authResponseKey, NodeRecordFactory nodeRecordFactory) {

@@ -8,6 +8,7 @@ import java.util.function.Function;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 import org.ethereum.beacon.discovery.schema.NodeSession;
+import org.ethereum.beacon.discovery.task.TaskType;
 
 public class HandlerUtil {
   private static final Logger logger = LogManager.getLogger(HandlerUtil.class);
@@ -21,6 +22,19 @@ public class HandlerUtil {
               String.format(
                   "Requirement not satisfied: field %s not exists in envelope %s",
                   field, envelope.getId()));
+      return false;
+    }
+  }
+
+  public static boolean requireTask(TaskType task, Envelope envelope) {
+    if (envelope.get(Field.TASK) != null && envelope.get(Field.TASK) == task) {
+      return true;
+    } else {
+      logger.trace(
+              () ->
+                      String.format(
+                              "Requirement not satisfied: Task %s not exists in envelope %s",
+                              task, envelope.getId()));
       return false;
     }
   }

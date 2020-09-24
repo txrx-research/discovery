@@ -102,13 +102,18 @@ public class NodeRecordTest {
     Random rnd = new Random(SEED);
     byte[] privKey = new byte[32];
     rnd.nextBytes(privKey);
-    NodeRecord nodeRecord0 =
+    NodeRecord nodeRecord0 = null;
+    Long start = System.nanoTime();
+    for (int i = 0; i < 1000; ++i){
+    nodeRecord0 =
         new NodeRecordBuilder()
             .seq(0)
             .address("127.0.0.1", 30303)
             .privateKey(Bytes.wrap(privKey))
             .build();
+    }
     assertTrue(nodeRecord0.isValid());
+    System.out.println("Total time: " + (System.nanoTime() - start)/1_000_000L + "ms");
     NodeRecord nodeRecord1 =
         new NodeRecordBuilder()
             .seq(1)

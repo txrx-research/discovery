@@ -25,7 +25,7 @@ public class RlpUtil {
    * Calculates length of list beginning from the start of the data. So, there could everything else
    * after first list in data, method helps to cut data in this case.
    */
-  private static int calcListLen(Bytes data) {
+  public static int calcListLen(Bytes data) {
     int prefix = data.get(0) & 0xFF;
     int prefixAddon = 1;
     if (prefix >= OFFSET_SHORT_LIST && prefix <= OFFSET_LONG_LIST) {

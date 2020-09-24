@@ -20,6 +20,8 @@ import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
 import org.web3j.crypto.ECKeyPair;
 
+import java.util.Random;
+
 public class FunctionsTest {
   private final Bytes testKey1 =
       Bytes.fromHexString("3332ca2b7003810449b6e596c3d284e914a1a51c9f76e4d9d7d43ef84adf6ed6");
@@ -119,16 +121,25 @@ public class FunctionsTest {
 
   @Test
   public void testGcmSimple() {
-    Bytes authResponseKey = Bytes.fromHexString("0x60bfc5c924a8d640f47df8b781f5a0e5");
-    Bytes authResponsePt =
-        Bytes.fromHexString(
-            "0xf8aa05b8404f5fa8309cab170dbeb049de504b519288777aae0c4b25686f82310206a4a1e264dc6e8bfaca9187e8b3dbb56f49c7aa3d22bff3a279bf38fb00cb158b7b8ca7b865f86380018269648276348375647082765f826970847f00000189736563703235366b31b84013d14211e0287b2361a1615890a9b5212080546d0a257ae4cff96cf534992cb97e6adeb003652e807c7f2fe843e0c48d02d4feb0272e2e01f6e27915a431e773");
-    Bytes zeroNonce = Bytes.wrap(new byte[12]);
-    Bytes authResponse =
-        Functions.aesgcm_encrypt(authResponseKey, zeroNonce, authResponsePt, Bytes.EMPTY);
-    Bytes authResponsePtDecrypted =
-        Functions.aesgcm_decrypt(authResponseKey, zeroNonce, authResponse, Bytes.EMPTY);
-    assertEquals(authResponsePt, authResponsePtDecrypted);
+    Long counter = 0L;
+    Random rnd = new Random();
+    for (int i = 0; i < 1000; ++i) {
+      Bytes authResponseKey = Bytes.fromHexString("0x60bfc5c924a8d640f47df8b781f5a0e5");
+      Bytes authResponsePt =
+              Bytes.fromHexString(
+                      "0xf8aa05b8404f5fa8309cab170dbeb049de504b519288777aae0c4b25686f82310206a4a1e264dc6e8bfaca9187e8b3dbb56f49c7aa3d22bff3a279bf38fb00cb158b7b8ca7b865f86380018269648276348375647082765f826970847f00000189736563703235366b31b84013d14211e0287b2361a1615890a9b5212080546d0a257ae4cff96cf534992cb97e6adeb003652e807c7f2fe843e0c48d02d4feb0272e2e01f6e27915a431e773");
+      byte[] a = new byte[12];
+      rnd.nextBytes(a);
+      Bytes zeroNonce = Bytes.wrap(a);
+      Long start = System.nanoTime();
+      Bytes authResponse =
+              Functions.aesgcm_encrypt(authResponseKey, zeroNonce, authResponsePt, Bytes.EMPTY);
+      counter += System.nanoTime() - start;
+      Bytes authResponsePtDecrypted =
+              Functions.aesgcm_decrypt(authResponseKey, zeroNonce, authResponse, Bytes.EMPTY);
+      assertEquals(authResponsePt, authResponsePtDecrypted);
+    }
+    System.out.println("Total time: " + counter/1_000_000L + "ms");
   }
 
   @Test
@@ -152,7 +163,11 @@ public class FunctionsTest {
 
     Bytes message =
         Bytes.concatenate(Bytes.wrap("discovery-id-nonce".getBytes()), nonce, ephemeralKey);
-    assertTrue(Functions.verifyECDSASignature(idNonceSig, Functions.hash(message), pubKey));
+    Long start = System.nanoTime();
+    for (int i = 0; i < 1000; ++i) {
+      assertTrue(Functions.verifyECDSASignature(idNonceSig, Functions.hash(message), pubKey));
+    }
+    System.out.println("Total time: " + (System.nanoTime() - start)/1_000_000L + "ms");
   }
 
   @Test

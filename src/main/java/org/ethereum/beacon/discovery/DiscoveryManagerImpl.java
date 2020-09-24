@@ -8,12 +8,15 @@ import com.google.common.annotations.VisibleForTesting;
 import java.net.InetSocketAddress;
 import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
+import java.util.function.Consumer;
+
 import org.apache.tuweni.bytes.Bytes;
 import org.ethereum.beacon.discovery.network.DiscoveryClient;
 import org.ethereum.beacon.discovery.network.NettyDiscoveryClientImpl;
 import org.ethereum.beacon.discovery.network.NettyDiscoveryServer;
 import org.ethereum.beacon.discovery.network.NettyDiscoveryServerImpl;
 import org.ethereum.beacon.discovery.network.NetworkParcel;
+import org.ethereum.beacon.discovery.packet.AuthHeaderMessagePacket;
 import org.ethereum.beacon.discovery.pipeline.Envelope;
 import org.ethereum.beacon.discovery.pipeline.Field;
 import org.ethereum.beacon.discovery.pipeline.Pipeline;
@@ -159,7 +162,19 @@ public class DiscoveryManagerImpl implements DiscoveryManager {
 
   @Override
   public CompletableFuture<Void> ping(NodeRecord nodeRecord) {
-    return executeTaskImpl(nodeRecord, TaskType.PING, new TaskOptions(true));
+    CompletableFuture<Void> future = new CompletableFuture<Void>();
+    return future;
+//    return executeTaskImpl(nodeRecord, TaskType.PING, new TaskOptions(true));
+  }
+
+  public CompletableFuture<AuthHeaderMessagePacket> startHandshake(NodeRecord nodeRecord) {
+    CompletableFuture<AuthHeaderMessagePacket> future = new CompletableFuture<>();
+    executeTaskImpl(nodeRecord, TaskType.HALFAUTH, new TaskOptions(future::complete));
+    return future;
+  }
+
+  public CompletableFuture<Void> completeHandshake(NodeRecord nodeRecord, AuthHeaderMessagePacket packet) {
+    return executeTaskImpl(nodeRecord, TaskType.AUTH, new TaskOptions(packet));
   }
 
   @VisibleForTesting

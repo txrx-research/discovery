@@ -227,6 +227,9 @@ public class NodeRecord {
         + this.asBase64()
         + ", nodeId="
         + this.getNodeId()
+        + ", seqNo="
+        + this.getSeq()
         + '}';
   }
 }
+
